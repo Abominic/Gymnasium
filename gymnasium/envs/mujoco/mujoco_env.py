@@ -31,7 +31,7 @@ class BaseMujocoEnv(gym.Env):
 
     def __init__(
         self,
-        model_path,
+        model_path, #Added support for direct XML instead of using a static file. Format {"path": str | path} or {"xml": str} TODO remove this notice.
         frame_skip,
         observation_space: Space,
         render_mode: Optional[str] = None,
@@ -40,12 +40,16 @@ class BaseMujocoEnv(gym.Env):
         camera_id: Optional[int] = None,
         camera_name: Optional[str] = None,
     ):
-        if model_path.startswith("/"):
-            self.fullpath = model_path
+        if type(model_path) == dict: #Add support for model XML by passing a dict with the "xml" key set to the XML string.
+            if "path" in model_path:
+                self.fullpath = self._process_model_path(model_path["path"])
+            elif "xml" in model_path:
+                self.model_xml = model_path["xml"]
+            else:
+                raise ValueError("Model not specified!")
         else:
-            self.fullpath = path.join(path.dirname(__file__), "assets", model_path)
-        if not path.exists(self.fullpath):
-            raise OSError(f"File {self.fullpath} does not exist")
+            self.fullpath = self._process_model_path(model_path)
+
 
         self.width = width
         self.height = height
@@ -71,6 +75,20 @@ class BaseMujocoEnv(gym.Env):
         self.render_mode = render_mode
         self.camera_name = camera_name
         self.camera_id = camera_id
+
+    def _process_model_path(self, model_path):
+        """
+        Transform the path of a model into an absolute path.
+        """
+        if model_path.startswith("/"):
+            absolute_path = model_path
+        else:
+            absolute_path = path.join(path.dirname(__file__), "assets", model_path)
+
+        if not path.exists(absolute_path):
+            raise OSError(f"File {absolute_path} does not exist")
+
+        return absolute_path
 
     def _set_action_space(self):
         bounds = self.model.actuator_ctrlrange.copy().astype(np.float32)
@@ -205,7 +223,11 @@ class MuJocoPyEnv(BaseMujocoEnv):
         )
 
     def _initialize_simulation(self):
-        self.model = mujoco_py.load_model_from_path(self.fullpath)
+        if self.fullpath is not None:
+            self.model = mujoco_py.load_model_from_path(self.fullpath)
+        else:
+            self.model = mujoco_py.load_model_from_xml(self.model_xml)
+
         self.sim = mujoco_py.MjSim(self.model)
         self.data = self.sim.data
 
@@ -348,7 +370,10 @@ class MujocoEnv(BaseMujocoEnv):
         )
 
     def _initialize_simulation(self):
-        self.model = mujoco.MjModel.from_xml_path(self.fullpath)
+        if self.fullpath is not None:
+            self.model = mujoco.MjModel.from_xml_path(self.fullpath)
+        else:
+            self.model = mujoco.MjModel.from_xml_string(self.model_xml)
         # MjrContext will copy model.vis.global_.off* to con.off*
         self.model.vis.global_.offwidth = self.width
         self.model.vis.global_.offheight = self.height
