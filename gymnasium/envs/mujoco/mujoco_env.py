@@ -31,7 +31,7 @@ class BaseMujocoEnv(gym.Env):
 
     def __init__(
         self,
-        model_path, #Added support for direct XML instead of using a static file. Format {"path": str | path} or {"xml": str} TODO remove this notice.
+        model_path,
         frame_skip,
         observation_space: Space,
         render_mode: Optional[str] = None,
@@ -40,7 +40,9 @@ class BaseMujocoEnv(gym.Env):
         camera_id: Optional[int] = None,
         camera_name: Optional[str] = None,
     ):
-        if type(model_path) == dict: #Add support for model XML by passing a dict with the "xml" key set to the XML string.
+        self.fullpath = None
+        self.model_xml = None
+        if type(model_path) == dict:
             if "path" in model_path:
                 self.fullpath = self._process_model_path(model_path["path"])
             elif "xml" in model_path:
@@ -49,7 +51,6 @@ class BaseMujocoEnv(gym.Env):
                 raise ValueError("Model not specified!")
         else:
             self.fullpath = self._process_model_path(model_path)
-
 
         self.width = width
         self.height = height
